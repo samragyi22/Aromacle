@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aromacle"
+version = "0.1.0"
+description = "Aromacle: an oracle for molecular scent - odor descriptor prediction from SMILES"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+# Dependencies are pinned in requirements.txt (pip freeze); install with:
+#   pip install -r requirements.txt && pip install -e .
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
