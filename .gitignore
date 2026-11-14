@@ -68,8 +68,6 @@ models/*.bin
 # Aromacle: raw & processed data (large; download/regenerate instead)
 data/raw/
 data/processed/
-*.csv
-!data/**/manifest*.csv
 
 # Aromacle: local experiment outputs
 runs/
