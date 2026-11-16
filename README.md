@@ -84,14 +84,16 @@ first.
 Phase 1 classical baselines on the test split (mean over 136 evaluated labels;
 `brandy` and `cherry` have a single class in the test split and are skipped).
 No hyperparameter tuning; validation split is reported by the CLI for reference.
+Bootstrap 95% CIs (500 resamples of test molecules, seed 42) in parentheses.
 Full source: [`results/baseline_metrics.csv`](results/baseline_metrics.csv).
 
-| Model | Features | Mean ROC-AUC | Mean PR-AUC | Labels skipped |
-|-------|----------|--------------|-------------|----------------|
-| RandomForest | Morgan (r=2, 2048 bits) | 0.7979 | 0.2283 | 2 |
-| RandomForest | RDKit descriptors (217) | **0.8387** | 0.2910 | 2 |
-| XGBoost (OvR) | Morgan (r=2, 2048 bits) | 0.8106 | 0.2521 | 2 |
-| XGBoost (OvR) | RDKit descriptors (217) | 0.8380 | **0.3049** | 2 |
+| Model | Features | Mean ROC-AUC (95% CI) | Mean PR-AUC (95% CI) | Labels skipped |
+|-------|----------|----------------------|----------------------|----------------|
+| Prevalence (random) | label frequencies | 0.5000 (0.5000, 0.5000) | 0.0325 (0.0316, 0.0355) | 2 |
+| RandomForest | Morgan (r=2, 2048 bits) | 0.7979 (0.7796, 0.8129) | 0.2283 (0.2231, 0.2751) | 2 |
+| RandomForest | RDKit descriptors (217) | **0.8415** (0.8233, 0.8554) | 0.2941 (0.2922, 0.3430) | 2 |
+| XGBoost (OvR) | Morgan (r=2, 2048 bits) | 0.8106 (0.7931, 0.8249) | 0.2521 (0.2488, 0.2990) | 2 |
+| XGBoost (OvR) | RDKit descriptors (217) | 0.8384 (0.8228, 0.8524) | **0.3048** (0.2987, 0.3553) | 2 |
 
 ## License
 
