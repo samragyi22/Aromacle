@@ -116,6 +116,7 @@ def save_metrics(
     label_names: list[str] | None = None,
     bootstrap_seed: int = BOOTSTRAP_SEED,
     n_bootstrap: int = BOOTSTRAP_N_RESAMPLES,
+    ci: dict[str, float] | None = None,
 ) -> dict:
     results_dir.mkdir(parents=True, exist_ok=True)
     per_label_path = results_dir / f"{model}_{features}_per_label.csv"
@@ -135,8 +136,9 @@ def save_metrics(
         "mean_pr_auc_ci_lower": np.nan,
         "mean_pr_auc_ci_upper": np.nan,
     }
-    if Y_true is not None and Y_pred is not None and label_names is not None:
+    if ci is None and Y_true is not None and Y_pred is not None and label_names is not None:
         ci = bootstrap_ci(Y_true, Y_pred, label_names, n_resamples=n_bootstrap, seed=bootstrap_seed)
+    if ci is not None:
         summary.update(ci)
 
     if summary_path.exists():
