@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     train_idx, val_idx, test_idx = scaffold_split(smiles, seed=args.seed)
 
     t0 = time.time()
-    X = featurize(smiles, args.features)
+    X = featurize(smiles, args.features, train_indices=train_idx)
     print(f"[featurize] {args.features}: shape {X.shape} in {time.time() - t0:.1f}s")
 
     model = build_model(args.model, seed=args.seed)
@@ -84,6 +84,9 @@ def main(argv: list[str] | None = None) -> int:
         features=args.features,
         seed=args.seed,
         results_dir=args.results_dir,
+        Y_true=Y[test_idx],
+        Y_pred=test_pred,
+        label_names=label_names,
     )
     print_baseline_table(args.results_dir)
     return 0
