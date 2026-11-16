@@ -57,43 +57,81 @@ def morgan_fingerprints(
     return out
 
 
-def rdkit_descriptors(smiles: list[str]) -> np.ndarray:
-    """Compute the full RDKit 2D descriptor set (~217 values per molecule).
+def _resolve_train_indices(
+    n: int, train_indices=None, train_idx=None, train_mask=None
+):
+    if train_mask is not None:
+        mask = np.asarray(train_mask, dtype=bool)
+        return np.flatnonzero(mask)
+    for candidate in (train_indices, train_idx):
+        if candidate is not None:
+            return np.asarray(candidate, dtype=int)
+    return None
 
-    Non-finite values (NaN/inf, which some descriptors produce for edge
-    cases) are replaced with 0.0 so downstream estimators never see them.
 
-    Returns
-    -------
-    ndarray of shape (n_molecules, n_descriptors), dtype float64
-    """
-    rows: list[np.ndarray] = []
+def rdkit_descriptors(
+    smiles: list[str],
+    train_indices=None,
+    train_idx=None,
+    train_mask=None,
+    impute_strategy: str = "median",
+):
+    rows = []
     for smi in smiles:
         mol = Chem.MolFromSmiles(smi)
         if mol is None:
-            rows.append(None)  # type: ignore[arg-type]
+            rows.append(None)
             continue
         desc = Descriptors.CalcMolDescriptors(mol)
         rows.append(np.fromiter(desc.values(), dtype=np.float64, count=len(desc)))
 
-    # Determine the descriptor dimensionality from the first valid molecule.
     n_desc = next(r.shape[0] for r in rows if r is not None)
     out = np.zeros((len(smiles), n_desc), dtype=np.float64)
     for i, row in enumerate(rows):
         if row is not None:
             out[i] = row
-    return np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
 
+    train_idx_arr = _resolve_train_indices(len(smiles), train_indices, train_idx, train_mask)
+
+    nonfinite = ~np.isfinite(out)
+    if not nonfinite.any():
+        return out
+
+    if train_idx_arr is None:
+        return np.nan_to_num(out, nan=0.0, posinf=0.0, neginf=0.0)
+
+    train_rows = out[train_idx_arr]
+    if impute_strategy == "mean":
+        stat = np.nanmean(np.where(np.isfinite(train_rows), train_rows, np.nan), axis=0)
+    else:
+        stat = np.nanmedian(np.where(np.isfinite(train_rows), train_rows, np.nan), axis=0)
+    stat = np.where(np.isfinite(stat), stat, 0.0)
+
+    for j in range(n_desc):
+        col_mask = nonfinite[:, j]
+        if col_mask.any():
+            out[col_mask, j] = stat[j]
+    return out
 
 def featurize(
     smiles: list[str],
     feature_set: str,
     radius: int = DEFAULT_RADIUS,
     n_bits: int = DEFAULT_N_BITS,
-) -> np.ndarray:
-    """Dispatch to a feature set by name: ``'morgan'`` or ``'descriptors'``."""
+    train_indices=None,
+    train_idx=None,
+    train_mask=None,
+    impute_strategy: str = "median",
+):
     if feature_set == "morgan":
         return morgan_fingerprints(smiles, radius=radius, n_bits=n_bits)
     if feature_set == "descriptors":
-        return rdkit_descriptors(smiles)
+        return rdkit_descriptors(
+            smiles,
+            train_indices=train_indices,
+            train_idx=train_idx,
+            train_mask=train_mask,
+            impute_strategy=impute_strategy,
+        )
     raise ValueError(f"Unknown feature set {feature_set!r}; expected 'morgan' or 'descriptors'")
+
