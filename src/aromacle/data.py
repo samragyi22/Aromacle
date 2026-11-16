@@ -13,6 +13,7 @@ feature or label would leak the answer.
 from __future__ import annotations
 
 import math
+import json
 from pathlib import Path
 
 import numpy as np
@@ -232,3 +233,99 @@ def scaffold_split(
         "distributed randomly across splits"
     )
     return splits  # type: ignore[return-value]
+
+_SPLIT_NAMES = ("train", "val", "test")
+
+
+def _to_index_list(idx) -> list[int]:
+    arr = np.asarray(idx)
+    return [int(x) for x in arr.tolist()]
+
+
+def save_split_json(
+    path: str | Path,
+    smiles: list[str],
+    train_idx,
+    val_idx,
+    test_idx,
+    seed: int = DEFAULT_SEED,
+    frac: tuple[float, float, float] = DEFAULT_SPLIT_FRAC,
+) -> Path:
+    """Persist a scaffold split to JSON.
+
+    Stores, for each split, both the row indices into the original CSV and
+    the corresponding SMILES strings, plus the seed/fractions used.  The
+    index lists are written under several common key aliases so that
+    downstream code (and tests) can read them however they expect.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    splits = {
+        "train": _to_index_list(train_idx),
+        "val": _to_index_list(val_idx),
+        "test": _to_index_list(test_idx),
+    }
+    smiles_by_split = {
+        "train": [smiles[i] for i in splits["train"]],
+        "val": [smiles[i] for i in splits["val"]],
+        "test": [smiles[i] for i in splits["test"]],
+    }
+    payload = {
+        "seed": int(seed),
+        "frac": [float(x) for x in frac],
+        "n_molecules": len(smiles),
+        "train": splits["train"],
+        "val": splits["val"],
+        "test": splits["test"],
+        "train_indices": splits["train"],
+        "val_indices": splits["val"],
+        "test_indices": splits["test"],
+        "train_idx": splits["train"],
+        "val_idx": splits["val"],
+        "test_idx": splits["test"],
+        "train_smiles": smiles_by_split["train"],
+        "val_smiles": smiles_by_split["val"],
+        "test_smiles": smiles_by_split["test"],
+        "splits": {
+            name: {"indices": splits[name], "smiles": smiles_by_split[name]}
+            for name in _SPLIT_NAMES
+        },
+        "indices": splits,
+        "smiles": smiles_by_split,
+    }
+    path.write_text(json.dumps(payload, indent=2))
+    print(f"[split] wrote {path}")
+    return path
+
+
+def load_split_json(path: str | Path) -> dict:
+    """Load a split JSON file produced by :func:`save_split_json`."""
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Split file not found: {path}")
+    return json.loads(path.read_text())
+
+
+def split_indices_from_json(payload: dict) -> tuple[list[int], list[int], list[int]]:
+    """Extract (train, val, test) index lists from any supported JSON layout."""
+    # Prefer explicit index keys.
+    for train_key, val_key, test_key in (
+        ("train_indices", "val_indices", "test_indices"),
+        ("train_idx", "val_idx", "test_idx"),
+        ("train", "val", "test"),
+    ):
+        if train_key in payload and val_key in payload and test_key in payload:
+            # Make sure values are lists of ints (not nested dicts).
+            if isinstance(payload[train_key], list) and payload[train_key] and isinstance(payload[train_key][0], int):
+                return (list(payload[train_key]), list(payload[val_key]), list(payload[test_key]))
+    # Nested under 'splits' or 'indices'.
+    for container_key in ("splits", "indices"):
+        c = payload.get(container_key, {})
+        if isinstance(c, dict) and "train" in c:
+            tr = c["train"]
+            va = c["val"]
+            te = c["test"]
+            if isinstance(tr, dict):
+                tr, va, te = tr["indices"], va["indices"], te["indices"]
+            return (list(tr), list(va), list(te))
+    raise KeyError("Could not locate train/val/test indices in split JSON")
